@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Lo-Fi Player</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --surface: #121212;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-muted: #707070;
+            --accent: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        /* --- КАРТОЧКА ПЛЕЕРА --- */
+        .player-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 720px;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 40px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+
+        /* Левая часть (Блок самого плеера) */
+        .player-main {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Верхняя панель */
+        .top-bar {
+            display: flex;
+            justify-content: flex-start; /* Выравнивание по левому краю после удаления второй кнопки */
+            margin-bottom: 24px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 16px;
+            cursor: pointer;
+            transition: color 0.2s;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-btn:hover, .icon-btn.active {
+            color: var(--text-main);
+        }
+
+        /* Обложка */
+        .cover-wrapper {
+            width: 100%;
+            aspect-ratio: 1;
+            margin-bottom: 24px;
+            overflow: hidden;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .cover {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Информация */
+        .info {
+            margin-bottom: 24px;
+        }
+
+        .info h2 {
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .info p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Прогресс-бар */
+        .progress-container {
+            width: 100%;
+            margin-bottom: 24px;
+        }
+
+        .time-wrapper {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.4);
+        }
+
+        /* Управление */
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+        }
+
+        .controls button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 16px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .controls button:hover {
+            color: var(--text-main);
+        }
+
+        .play-btn {
+            width: 48px;
+            height: 48px;
+            background: var(--text-main) !important;
+            color: var(--bg) !important;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px !important;
+        }
+
+        /* Правая часть — Плейлист сбоку */
+        .playlist-wrapper {
+            border-left: 1px solid var(--border);
+            padding-left: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .playlist {
+            max-height: 360px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .playlist::-webkit-scrollbar { width: 2px; }
+        .playlist::-webkit-scrollbar-thumb { background: var(--border); }
+
+        .playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .playlist-item:hover { background: rgba(255,255,255,0.03); }
+        .playlist-item.active { background: rgba(255,255,255,0.05); }
+        .playlist-item.active .item-title { color: var(--accent); }
+
+        .item-icon { width: 24px; font-size: 11px; color: var(--text-muted); }
+        .playlist-item.active .item-icon { color: var(--accent); }
+        .item-info { display: flex; flex-direction: column; }
+        .item-title { font-size: 14px; font-weight: 400; }
+        .item-artist { font-size: 11px; color: var(--text-muted); }
+
+        /* --- МИНИ-РЕЖИМ (ДЕСКТОП) --- */
+        .player-card.mini {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 320px;
+            padding: 16px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            border-radius: 12px;
+        }
+
+        .player-card.mini .top-bar,
+        .player-card.mini .playlist-wrapper,
+        .player-card.mini .time-wrapper,
+        .player-card.mini #prev,
+        .player-card.mini #next { display: none !important; }
+
+        .player-card.mini .player-main { width: 100%; flex-direction: row; align-items: center; }
+        .player-card.mini .cover-wrapper {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 0;
+            margin-right: 12px;
+        }
+
+        .player-card.mini .info { margin-bottom: 0; flex: 1; min-width: 0;}
+        .player-card.mini .info h2 { font-size: 14px; }
+        .player-card.mini .info p { font-size: 11px; }
+
+        .player-card.mini .controls { margin-bottom: 0; margin-left: 12px; }
+        .player-card.mini .play-btn { width: 36px; height: 36px; font-size: 11px !important; }
+
+        .player-card.mini .progress-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; margin: 0;
+        }
+        .player-card.mini input[type="range"] { height: 2px; }
+        .player-card.mini input[type="range"]::-webkit-slider-thumb { width: 0; height: 0; }
+
+        /* --- АМБИЕНТ ПАНЕЛЬ --- */
+        .noise-panel {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: #121212;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            width: 280px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+
+        .noise-panel.active { opacity: 1; visibility: visible; }
+        .noise-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .noise-item { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .noise-item:last-child { margin-bottom: 0; }
+        .noise-icon { width: 16px; color: var(--text-muted); font-size: 14px; text-align: center; }
+        .noise-item input[type="range"] { flex: 1; }
+
+        .hotkeys-hint {
+            position: fixed;
+            bottom: 24px; left: 24px;
+            font-size: 11px;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        /* --- МОБИЛЬНАЯ ВЕРСИЯ --- */
+        @media (max-width: 768px) {
+            body { padding: 0; align-items: flex-start; overflow-y: auto; }
+            
+            .player-card {
+                grid-template-columns: 1fr;
+                max-width: 100%;
+                min-height: 100vh;
+                border: none;
+                border-radius: 0;
+                padding: 24px;
+                gap: 24px;
+            }
+
+            .playlist-wrapper {
+                border-left: none;
+                border-top: 1px solid var(--border);
+                padding-left: 0;
+                padding-top: 24px;
+                justify-content: start;
+            }
+
+            .playlist {
+                max-height: 200px;
+            }
+
+            .hotkeys-hint { display: none; }
+
+            .player-card.mini {
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                width: 100%;
+                height: 72px;
+                min-height: auto;
+                border-top: 1px solid var(--border);
+                border-radius: 0;
+                padding: 12px 20px;
+                background: rgba(18, 18, 18, 0.95);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="noise-rain" src="https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg" loop preload="none"></audio>
+    <audio id="noise-cafe" src="https://actions.google.com/sounds/v1/crowds/cafe_restaurant.ogg" loop preload="none"></audio>
+    <audio id="noise-train" src="https://actions.google.com/sounds/v1/transportation/train_pass.ogg" loop preload="none"></audio>
+
+    <div class="player-card" id="player-card">
+        
+        <div class="player-main">
+            <div class="top-bar">
+                <button class="icon-btn" id="btn-noise" title="Mixer (N)"><i class="fas fa-sliders-h"></i></button>
+            </div>
+
+            <div class="cover-wrapper">
+                <img src="" alt="Cover" class="cover" id="cover">
+            </div>
+            
+            <div class="info">
+                <h2 id="title">Track Title</h2>
+                <p id="artist">Artist Name</p>
+            </div>
+
+            <div class="progress-container">
+                <div class="time-wrapper">
+                    <span id="current-time">0:00</span>
+                    <span id="duration">0:00</span>
+                </div>
+                <input type="range" id="progress" min="0" max="100" value="0" class="no-expand">
+            </div>
+
+            <div class="controls">
+                <button id="prev" class="no-expand"><i class="fas fa-backward"></i></button>
+                <button id="play" class="play-btn no-expand"><i class="fas fa-play"></i></button>
+                <button id="next" class="no-expand"><i class="fas fa-forward"></i></button>
+            </div>
+        </div>
+
+        <div class="playlist-wrapper">
+            <div class="playlist" id="playlist"></div>
+        </div>
+
+        <audio id="audio" src=""></audio>
+    </div>
+
+    <div class="noise-panel" id="noise-panel">
+        <div class="noise-header">
+            <span>AMBIENCE</span>
+            <button class="icon-btn" id="btn-close-noise" style="width:20px; height:20px;"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="noise-item"><div class="noise-icon"><i class="fas fa-cloud-rain"></i></div><input type="range" id="vol-rain" min="0" max="100" value="0"></div>
+        <div class="noise-item"><div class="noise-icon"><i class="fas fa-coffee"></i></div><input type="range" id="vol-cafe" min="0" max="100" value="0"></div>
+        <div class="noise-item"><div class="noise-icon"><i class="fas fa-train"></i></div><input type="range" id="vol-train" min="0" max="100" value="0"></div>
+    </div>
+
+    <div class="hotkeys-hint">SPACE to play • M to mini • N for noise</div>
+
+    <script>
+        const tracks = [
+            {
+                title: "Night Drive", artist: "Local Lo-Fi",
+                src: "music/track1.mp3",
+                cover: "music/pic1.png"
+            },
+            {
+                title: "Tokyo Rain", artist: "Local Lo-Fi",
+                src: "music/track2.mp3",
+                cover: "music/cover2.jpg"
+            },
+            {
+                title: "Coffee Shop", artist: "Local Lo-Fi",
+                src: "music/track3.mp3",
+                cover: "music/cover3.jpg"
+            }
+        ];
+
+        let trackIndex = 0;
+        let isPlaying = false;
+
+        const audio = document.getElementById('audio');
+        const playBtn = document.getElementById('play');
+        const prevBtn = document.getElementById('prev');
+        const nextBtn = document.getElementById('next');
+        const titleEl = document.getElementById('title');
+        const artistEl = document.getElementById('artist');
+        const coverEl = document.getElementById('cover');
+        const progressEl = document.getElementById('progress');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const playlistContainer = document.getElementById('playlist');
+        const playerCard = document.getElementById('player-card');
+        const noisePanel = document.getElementById('noise-panel');
+        const btnNoise = document.getElementById('btn-noise');
+        const btnCloseNoise = document.getElementById('btn-close-noise');
+
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            tracks.forEach((track, index) => {
+                const item = document.createElement('div');
+                item.className = `playlist-item ${index === trackIndex ? 'active' : ''}`;
+                const icon = (index === trackIndex && isPlaying) ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-music"></i>';
+                item.innerHTML = `
+                    <div class="item-icon">${icon}</div>
+                    <div class="item-info">
+                        <div class="item-title">${track.title}</div>
+                        <div class="item-artist">${track.artist}</div>
+                    </div>
+                `;
+                item.addEventListener('click', () => {
+                    if (trackIndex !== index) {
+                        trackIndex = index;
+                        loadTrack(tracks[trackIndex]);
+                        playTrack();
+                    } else {
+                        isPlaying ? pauseTrack() : playTrack();
+                    }
+                });
+                playlistContainer.appendChild(item);
+            });
+        }
+
+        function loadTrack(track) {
+            titleEl.textContent = track.title;
+            artistEl.textContent = track.artist;
+            audio.src = track.src;
+            coverEl.src = track.cover;
+            renderPlaylist();
+        }
+
+        function playTrack() {
+            isPlaying = true;
+            playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            audio.play().catch(e => console.log("Автовоспроизведение заблокировано браузером"));
+            renderPlaylist();
+        }
+
+        function pauseTrack() {
+            isPlaying = false;
+            playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            audio.pause();
+            renderPlaylist();
+        }
+
+        function prevTrack() {
+            trackIndex = (trackIndex - 1 + tracks.length) % tracks.length;
+            loadTrack(tracks[trackIndex]);
+            if (isPlaying) playTrack();
+        }
+
+        function nextTrack() {
+            trackIndex = (trackIndex + 1) % tracks.length;
+            loadTrack(tracks[trackIndex]);
+            if (isPlaying) playTrack();
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "0:00";
+            const min = Math.floor(seconds / 60);
+            const sec = Math.floor(seconds % 60);
+            return `${min}:${sec < 10 ? '0' + sec : sec}`;
+        }
+
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                progressEl.value = (audio.currentTime / audio.duration) * 100;
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            }
+        });
+
+        audio.addEventListener('loadedmetadata', () => {
+            durationEl.textContent = formatTime(audio.duration);
+        });
+
+        progressEl.addEventListener('input', (e) => {
+            audio.currentTime = (e.target.value / 100) * audio.duration;
+        });
+
+        audio.addEventListener('ended', nextTrack);
+        playBtn.addEventListener('click', () => isPlaying ? pauseTrack() : playTrack());
+        prevBtn.addEventListener('click', prevTrack);
+        nextBtn.addEventListener('click', nextTrack);
+
+        function toggleMiniMode() {
+            playerCard.classList.toggle('mini');
+            if(playerCard.classList.contains('mini')) noisePanel.classList.remove('active');
+        }
+
+        playerCard.addEventListener('click', (e) => {
+            if (playerCard.classList.contains('mini') && !e.target.closest('.no-expand')) {
+                toggleMiniMode();
+            }
+        });
+
+        function toggleNoisePanel() {
+            noisePanel.classList.toggle('active');
+            btnNoise.classList.toggle('active');
+        }
+
+        btnNoise.addEventListener('click', toggleNoisePanel);
+        btnCloseNoise.addEventListener('click', toggleNoisePanel);
+
+        const noises = [
+            { id: 'rain', audio: document.getElementById('noise-rain'), slider: document.getElementById('vol-rain') },
+            { id: 'cafe', audio: document.getElementById('noise-cafe'), slider: document.getElementById('vol-cafe') },
+            { id: 'train', audio: document.getElementById('noise-train'), slider: document.getElementById('vol-train') }
+        ];
+
+        noises.forEach(noise => {
+            noise.slider.addEventListener('input', (e) => {
+                const volume = e.target.value / 100;
+                noise.audio.volume = volume;
+                if (volume > 0 && noise.audio.paused) noise.audio.play();
+                else if (volume === 0 && !noise.audio.paused) noise.audio.pause();
+            });
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            switch(e.code) {
+                case 'Space': e.preventDefault(); isPlaying ? pauseTrack() : playTrack(); break;
+                case 'ArrowRight': e.preventDefault(); nextTrack(); break;
+                case 'ArrowLeft': e.preventDefault(); prevTrack(); break;
+                case 'KeyM': toggleMiniMode(); break;
+                case 'KeyN': if (!playerCard.classList.contains('mini')) toggleNoisePanel(); break;
+                case 'Escape': 
+                    if (noisePanel.classList.contains('active')) toggleNoisePanel();
+                    else if (playerCard.classList.contains('mini')) toggleMiniMode();
+                    break;
+            }
+        });
+
+        loadTrack(tracks[trackIndex]);
+    </script>
+</body>
+</html>
